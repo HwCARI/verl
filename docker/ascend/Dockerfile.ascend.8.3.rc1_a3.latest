@@ -1,0 +1,78 @@
+# veRL Environment for Ascend NPU
+# Build:  docker build -t verl-ascend .
+# Run:    docker run -it --name verl-env verl-ascend /bin/bash
+
+FROM swr.cn-south-1.myhuaweicloud.com/ascendhub/cann:8.3.rc1-a3-ubuntu22.04-py3.11
+
+# ---------- Step 1: System dependencies ----------
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+        gcc g++ cmake libnuma-dev wget git curl jq vim build-essential && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
+    pip install --upgrade pip packaging setuptools==80.10.2 && \
+    pip cache purge
+
+# ---------- Step 2: Clone repositories ----------
+WORKDIR /
+RUN git clone --depth 1 --branch v0.11.0 https://github.com/vllm-project/vllm.git && \
+    git clone --depth 1 --branch v0.11.0 https://github.com/vllm-project/vllm-ascend.git && \
+    git clone https://gitcode.com/Ascend/MindSpeed.git && \
+    git clone --depth 1 --branch core_v0.14.0 https://github.com/NVIDIA/Megatron-LM.git
+
+# ---------- Step 3 & 4: Ascend env + PyTorch + torch_npu ----------
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ]; then \
+        export LD_LIBRARY_PATH=/usr/local/Ascend/ascend-toolkit/8.3.RC1/aarch64-linux/devlib/linux/aarch64:$LD_LIBRARY_PATH; \
+    elif [ "$ARCH" = "x86_64" ]; then \
+        pip config set global.extra-index-url "https://download.pytorch.org/whl/cpu/" && \
+        export LD_LIBRARY_PATH=/usr/local/Ascend/ascend-toolkit/8.3.RC1/x86_64-linux/devlib/linux/x86_64/:$LD_LIBRARY_PATH; \
+    fi && \
+    . /usr/local/Ascend/ascend-toolkit/set_env.sh && \
+    . /usr/local/Ascend/nnal/atb/set_env.sh && \
+    pip install torch==2.7.1 torch_npu==2.7.1 torchvision==0.22.1 transformers==4.57.6
+
+# ---------- Step 5: vLLM + vLLM-Ascend ----------
+RUN cd /vllm && VLLM_TARGET_DEVICE=empty pip install -v -e . && \
+    cd /vllm-ascend && pip install -v -e .
+
+# ---------- Step 6: Megatron-LM + MindSpeed ----------
+RUN cd /Megatron-LM && pip install -v -e . && \
+    cd /MindSpeed && git checkout core_r0.14.0 && pip install -e .
+
+# ---------- Step 7: Clean up conflicting packages ----------
+RUN pip uninstall -y triton triton-ascend || true
+
+# ---------- Step 8: mbridge ----------
+RUN pip install git+https://github.com/ISEEKYAN/mbridge.git@4389fcc450c5f90f0cf22e9c77e3d49e2c643e24 && \
+    rm -rf /tmp/* /var/tmp/* && \
+    pip cache purge
+
+# ---------- Step 9: veRL ----------
+RUN git clone https://github.com/HwCARI/verl.git /verl && \
+    cd /verl && git checkout ascend-dev && \
+    pip install -r requirements-npu.txt && \
+    pip install -v -e .
+
+# ---------- Step 10: Apex ----------
+RUN ARCH=$(uname -m) && \
+    git clone -b master https://gitcode.com/Ascend/apex.git /apex-src && \
+    cd /apex-src && \
+    bash scripts/build.sh --python=3.11 && \
+    pip uninstall -y apex || true && \
+    pip install /apex-src/apex/dist/apex-0.1+ascend-cp311-cp311-linux_${ARCH}.whl
+
+# ---------- Step 11: Apply manual patches to MindSpeed ----------
+
+# 12a: Register Qwen3-VL transformer config patch (insert at line 48)
+RUN sed -i '47a\        pm.register_patch("mbridge.models.qwen3_vl.transformer_config.Qwen3VLTransformerConfig.__init__", transformer_config_init_wrapper)' \
+    /MindSpeed/mindspeed/features_manager/megatron_basic/megatron_basic.py
+
+# 12b: Fix bias assignment in LayerNorm column parallel linear (insert at line 276)
+RUN sed -i '299a\        bias = self.bias if self.skip_bias_add else None' \
+    /MindSpeed/mindspeed/te/pytorch/module/layernorm_column_parallel_linear.py
+
+# ---------- Final cleanup ----------
+RUN rm -rf /tmp/* /var/tmp/* && pip cache purge
+
+WORKDIR /verl
