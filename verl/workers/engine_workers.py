@@ -43,6 +43,11 @@ from verl.workers.config import ActorConfig, HFModelConfig, MtpConfig, RolloutCo
 from verl.workers.rollout.base import BaseRollout, get_rollout_class
 from verl.workers.utils.losses import ppo_loss
 
+try:
+    from verl.workers.engine.mindspeed.transformer_impl import repatch
+except ImportError:
+    repatch = None
+
 logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 
@@ -462,6 +467,10 @@ class ActorRolloutRefWorker(Worker, DistProfilerExtension):
     def init_model(self):
         model_config: HFModelConfig = omega_conf_to_dataclass(self.config.model)
 
+        if repatch is not None:
+            # NPU MindSpeed patch, will be refactored with MindSpeedEngine.
+            repatch(self.config.actor.megatron.get("override_transformer_config", {}))
+        
         # 1. build reference model
         if "ref" in self.role:
             # TODO: align ref config with actor config
