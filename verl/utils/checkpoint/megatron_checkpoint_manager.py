@@ -379,7 +379,7 @@ class MegatronCheckpointManager(BaseCheckpointManager):
             # For backward compatibility
             sharded_sd_metadata = None
         else:
-           try:
+            try:
                 from mindspeed.core.optimizer.adamw import AdamW as MindSpeedAdamW
                 torch.serialization.add_safe_globals([MindSpeedAdamW])
             except ImportError:
