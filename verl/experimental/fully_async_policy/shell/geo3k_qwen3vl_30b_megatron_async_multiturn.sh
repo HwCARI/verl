@@ -4,12 +4,17 @@ set -x
 ENGINE=${1:-vllm}
 export CUDA_DEVICE_MAX_CONNECTIONS=1 # For megatron communication/computation overlapping
 
-source /usr/local/Ascend/ascend-toolkit/set_env.sh
-source /usr/local/Ascend/nnal/atb/set_env.sh
+# Device type: 'npu' (default) or 'cuda'
+DEVICE=${DEVICE:-npu}
+
+if [ "$DEVICE" = "npu" ]; then
+    source /usr/local/Ascend/ascend-toolkit/set_env.sh
+    source /usr/local/Ascend/nnal/atb/set_env.sh
+    export VLLM_ASCEND_ENABLE_NZ=0
+fi
 
 export VLLM_ALLREDUCE_USE_SYMM_MEM=0
 export HYDRA_FULL_ERROR=1
-export VLLM_ASCEND_ENABLE_NZ=0
 
 
 HF_MODEL_PATH=/home/models/Qwen3-VL-30B-A3B-Instruct
@@ -143,7 +148,7 @@ python -m verl.experimental.fully_async_policy.fully_async_main \
     rollout.n_gpus_per_node="${n_gpus_rollout}" \
     rollout.total_rollout_steps="${total_rollout_steps}" \
     trainer.test_freq="${test_freq}" \
-    trainer.device=npu \
+    trainer.device=${DEVICE} \
     async_training.staleness_threshold="${staleness_threshold}" \
     async_training.trigger_parameter_sync_step="${trigger_parameter_sync_step}" \
     async_training.require_batches="${require_batches}" \
