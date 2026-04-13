@@ -34,8 +34,14 @@ fi
 NNODES=${NNODES:-1}
 NGPUS_PER_NODE=${NGPUS_PER_NODE:-16}
 
-n_gpus_rollout=8
+n_gpus_rollout=${N_GPUS_ROLLOUT:-8}
 n_gpus_training=$((NGPUS_PER_NODE - n_gpus_rollout))
+
+if [ "${n_gpus_training}" -le 0 ]; then
+    echo "ERROR: n_gpus_training=${n_gpus_training} is not positive." \
+         "NGPUS_PER_NODE=${NGPUS_PER_NODE} must be greater than N_GPUS_ROLLOUT=${n_gpus_rollout}."
+    exit 1
+fi
 
 train_prompt_bsz=0
 gen_prompt_bsz=1
@@ -48,7 +54,7 @@ trigger_parameter_sync_step=4
 require_batches=2
 partial_rollout=True
 total_epochs=200
-EXP_NAME='qwen3_vl_3b_megatron_async_test'
+EXP_NAME='qwen3_vl_30b_megatron_async_test'
 
 max_prompt_length=$((1024))
 max_response_length=$((1024 * 2))
@@ -147,12 +153,11 @@ python -m verl.experimental.fully_async_policy.fully_async_main \
     rollout.nnodes="${NNODES}" \
     rollout.n_gpus_per_node="${n_gpus_rollout}" \
     rollout.total_rollout_steps="${total_rollout_steps}" \
-    trainer.test_freq="${test_freq}" \
     trainer.device=${DEVICE} \
     async_training.staleness_threshold="${staleness_threshold}" \
     async_training.trigger_parameter_sync_step="${trigger_parameter_sync_step}" \
     async_training.require_batches="${require_batches}" \
-    actor_rollout_ref.rollout.multi_turn.tool_config_path="$PROJECT_DIR/examples/sglang_multiturn/config/tool_config/geo3k_tool_config.yaml" \
+    actor_rollout_ref.rollout.multi_turn.tool_config_path="$PROJECT_DIR/verl/experimental/fully_async_policy/config/geo3k_tool_config.yaml" \
     async_training.partial_rollout="${partial_rollout}" 2>&1 | tee run.log
 
 
