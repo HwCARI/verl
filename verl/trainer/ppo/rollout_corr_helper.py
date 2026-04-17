@@ -1065,7 +1065,9 @@ def apply_bypass_mode(
         )
 
     # Use rollout log probs as old log probs (zero-cost substitution)
-    batch.batch["old_log_probs"] = batch.batch["rollout_log_probs"]
+    rollout_log_probs = batch.batch["rollout_log_probs"]
+    LOG_PROB_FLOOR = -1e1
+    batch.batch["old_log_probs"] = torch.nan_to_num(rollout_log_probs, nan=LOG_PROB_FLOOR, posinf=0.0, neginf=LOG_PROB_FLOOR)
 
     with open_dict(policy_loss_config):
         # Pass rollout_correction config to actor for loss computation and metrics
