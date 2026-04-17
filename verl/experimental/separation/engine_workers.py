@@ -15,6 +15,7 @@
 
 import logging
 import os
+from typing import Callable
 
 from omegaconf import DictConfig
 
@@ -87,11 +88,11 @@ class DetachActorWorker(ActorRolloutRefWorker):
         return self._strategy_handlers
 
     @property
-    def copy_handler(self):
+    def copy_handler(self) -> Callable:
         return self._get_strategy_handlers()[0]
 
     @property
-    def restore_handler(self):
+    def restore_handler(self) -> Callable:
         return self._get_strategy_handlers()[1]
 
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
