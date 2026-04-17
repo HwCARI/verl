@@ -111,7 +111,6 @@ class ToolAgentLoop(AgentLoopBase):
         self.tool_parser_name = self.rollout_config.multi_turn.format
 
         self.response_length = self.rollout_config.response_length
-        self.truncation = self.config.data.truncation
         self.prompt_length = self.rollout_config.prompt_length
 
         # Initialize interactions from config file
@@ -225,16 +224,11 @@ class ToolAgentLoop(AgentLoopBase):
         )
 
         if len(prompt_ids) > self.prompt_length:
-            if self.truncation == "left":
-                prompt_ids = prompt_ids[-self.prompt_length :]
-            elif self.truncation == "right":
-                prompt_ids = prompt_ids[: self.prompt_length]
-            elif self.truncation == "middle":
-                left_half = self.prompt_length // 2
-                right_half = self.prompt_length - left_half
-                prompt_ids = prompt_ids[:left_half] + prompt_ids[-right_half:]
-            elif self.truncation == "error":
-                raise RuntimeError(f"Prompt length {len(prompt_ids)} is longer than {self.prompt_length}.")
+            logger.warning(
+                f"Prompt length {len(prompt_ids)} exceeds prompt_length {self.prompt_length}. "
+                "Filtering out this sample."
+            )
+            return AgentState.TERMINATED
 
         agent_data.prompt_ids = prompt_ids
         return AgentState.GENERATING
