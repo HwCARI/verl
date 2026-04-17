@@ -188,6 +188,13 @@ class ToolAgentLoop(AgentLoopBase):
             images=agent_data.image_data,
             videos=agent_data.video_data,
         )
+        
+        if len(prompt_ids) > self.prompt_length:
+            logger.warning(
+                f"Prompt length {len(prompt_ids)} exceeds prompt_length {self.prompt_length}. "
+                "Filtering out this sample."
+            )
+            return AgentState.TERMINATED
         agent_data.prompt_ids = prompt_ids
         return AgentState.GENERATING
 
