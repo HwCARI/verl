@@ -89,10 +89,12 @@ class DetachActorWorker(ActorRolloutRefWorker):
 
     @property
     def copy_handler(self) -> Callable:
+        """Get the copy handler for the strategy."""
         return self._get_strategy_handlers()[0]
 
     @property
     def restore_handler(self) -> Callable:
+        """Get the restore handler for the strategy."""
         return self._get_strategy_handlers()[1]
 
     @register(dispatch_mode=Dispatch.ONE_TO_ALL)
